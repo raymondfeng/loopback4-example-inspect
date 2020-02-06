@@ -10,7 +10,9 @@ export async function main(options: ApplicationConfig = {}) {
 
   const url = app.restServer.url;
   console.log(`Server is running at ${url}`);
-  console.log(`Try ${url}/ping`);
+  console.log(`Ping: ${url}/ping`);
+  console.log(`Inspect: ${url}/inspect`);
+  console.log(`Graph: ${url}/graph`);
 
   return app;
 }
