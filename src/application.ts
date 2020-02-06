@@ -1,3 +1,8 @@
+// Copyright IBM Corp. 2020. All Rights Reserved.
+// Node module: @loopback/context-explorer
+// This file is licensed under the MIT License.
+// License text available at https://opensource.org/licenses/MIT
+
 import {BootMixin} from '@loopback/boot';
 import {ApplicationConfig} from '@loopback/core';
 import {
@@ -10,7 +15,7 @@ import {ServiceMixin} from '@loopback/service-proxy';
 import path from 'path';
 import {MySequence} from './sequence';
 
-export class UiApplication extends BootMixin(
+export class InspectApplication extends BootMixin(
   ServiceMixin(RepositoryMixin(RestApplication)),
 ) {
   constructor(options: ApplicationConfig = {}) {

@@ -1,9 +1,27 @@
+// Copyright IBM Corp. 2020. All Rights Reserved.
+// Node module: @loopback/context-explorer
+// This file is licensed under the MIT License.
+// License text available at https://opensource.org/licenses/MIT
+
 import {JSONObject, JSONArray} from '@loopback/context';
 
-export type BindingFilter = (binding: JSONObject) => boolean;
+/**
+ * A filter function to control if a binding is to be rendered
+ */
+export type BindingNodeFilter = (binding: JSONObject) => boolean;
 
+/**
+ * A graph for context hierarchy
+ */
 export class ContextGraph {
+  /**
+   * Class nodes
+   */
   private readonly classes: string[] = [];
+
+  /**
+   * Context json objects in the chain from root to leaf
+   */
   private readonly contextChain: JSONObject[] = [];
 
   constructor(ctx: JSONObject) {
@@ -19,7 +37,6 @@ export class ContextGraph {
    * Assign a unique id for each bindings
    */
   private indexBindings() {
-    // eslint-disable-next-line @typescript-eslint/prefer-for-of
     for (let level = 0; level < this.contextChain.length; level++) {
       const ctx = this.contextChain[level];
       let index = 0;
@@ -36,7 +53,7 @@ export class ContextGraph {
    * Recursive render the chain of contexts as subgraphs
    * @param level - Level of the context in the chain
    */
-  private renderContextChain(level: number, bindingFilter: BindingFilter) {
+  private renderContextChain(level: number, bindingFilter: BindingNodeFilter) {
     const ctx = this.contextChain[level];
     const nodes: string[] = [];
     const bindings = ctx.bindings as JSONObject;
@@ -80,6 +97,11 @@ ${child}
     return undefined;
   }
 
+  /**
+   * Render injections for a binding
+   * @param binding - Binding object
+   * @param level - Context level
+   */
   private renderBindingInjections(binding: JSONObject, level: number) {
     const edges: string[] = [];
     const ctor = binding.valueConstructor ?? binding.providerConstructor;
@@ -124,6 +146,11 @@ ${child}
     return edges;
   }
 
+  /**
+   * Find target binding for an injection
+   * @param injection - Injection object
+   * @param level - Context level
+   */
   private getBindingForInjection(injection: JSONObject, level: number) {
     if (injection.bindingKey) {
       const binding = this.getBinding(injection.bindingKey as string, level);
@@ -134,8 +161,9 @@ ${child}
 
   /**
    * Render the context graph in graphviz dot format
+   * @param bindingFilter - Binding filter function
    */
-  render(bindingFilter: BindingFilter = () => true) {
+  render(bindingFilter: BindingNodeFilter = () => true) {
     const contextClusters = this.renderContextChain(0, bindingFilter);
     const graph = `digraph ContextGraph {
 ${this.classes.join('\n')}

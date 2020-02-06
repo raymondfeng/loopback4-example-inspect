@@ -1,10 +1,15 @@
-import {UiApplication} from './application';
+// Copyright IBM Corp. 2020. All Rights Reserved.
+// Node module: @loopback/context-explorer
+// This file is licensed under the MIT License.
+// License text available at https://opensource.org/licenses/MIT
+
+import {InspectApplication} from './application';
 
 export async function migrate(args: string[]) {
   const existingSchema = args.includes('--rebuild') ? 'drop' : 'alter';
   console.log('Migrating schemas (%s existing schema)', existingSchema);
 
-  const app = new UiApplication();
+  const app = new InspectApplication();
   await app.boot();
   await app.migrateSchema({existingSchema});
 

@@ -1,10 +1,15 @@
-import {UiApplication} from './application';
+// Copyright IBM Corp. 2020. All Rights Reserved.
+// Node module: @loopback/context-explorer
+// This file is licensed under the MIT License.
+// License text available at https://opensource.org/licenses/MIT
+
+import {InspectApplication} from './application';
 import {ApplicationConfig} from '@loopback/core';
 
-export {UiApplication};
+export {InspectApplication};
 
 export async function main(options: ApplicationConfig = {}) {
-  const app = new UiApplication(options);
+  const app = new InspectApplication(options);
   await app.boot();
   await app.start();
 

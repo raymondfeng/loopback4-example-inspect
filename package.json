@@ -35,8 +35,8 @@
   "repository": {
     "type": "git"
   },
-  "author": "",
-  "license": "",
+  "author": "Raymond Feng <enjoyjava@gmail.com>",
+  "license": "MIT",
   "files": [
     "README.md",
     "index.js",

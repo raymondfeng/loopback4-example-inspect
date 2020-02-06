@@ -1,13 +1,19 @@
-import {inject, JSONObject, JSONArray} from '@loopback/context';
+// Copyright IBM Corp. 2020. All Rights Reserved.
+// Node module: @loopback/context-explorer
+// This file is licensed under the MIT License.
+// License text available at https://opensource.org/licenses/MIT
+
+import {inject, JSONObject} from '@loopback/context';
 import {
   get,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   param,
   RequestContext,
   ResponseObject,
   RestBindings,
 } from '@loopback/rest';
 
-import {VizVisualizer} from './visualizer';
+import {renderGraph} from './visualizer';
 import {ContextGraph} from './context-graph';
 
 /**
@@ -85,14 +91,12 @@ export class PingController {
     @param.query.boolean('includeGraph') includeGraph = true,
   ): JSONObject {
     const result = this.ctx.inspect({includeInjections, includeParent});
-    const graph = new ContextGraph(result).render();
     if (includeGraph) {
+      const graph = new ContextGraph(result).render();
       result.graph = graph;
+      // console.log();
+      // console.log(graph);
     }
-    console.log();
-    console.log(graph);
-
-    console.log(new VizVisualizer().render(graph));
     return result;
   }
 
@@ -101,12 +105,11 @@ export class PingController {
   async graph(
     @param.query.boolean('includeInjections') includeInjections = true,
     @param.query.boolean('includeParent') includeParent = true,
-    @param.query.boolean('includeGraph') includeGraph = true,
   ) {
     const result = this.ctx.inspect({includeInjections, includeParent});
     const graph = new ContextGraph(result).render();
 
-    const svg = await new VizVisualizer().render(graph);
+    const svg = await renderGraph(graph);
     this.ctx.response.contentType('image/svg+xml').send(svg);
     return this.ctx.response;
   }

@@ -1,9 +1,14 @@
+// Copyright IBM Corp. 2020. All Rights Reserved.
+// Node module: @loopback/context-explorer
+// This file is licensed under the MIT License.
+// License text available at https://opensource.org/licenses/MIT
+
 import {Client} from '@loopback/testlab';
-import {UiApplication} from '../..';
+import {InspectApplication} from '../..';
 import {setupApplication} from './test-helper';
 
 describe('HomePage', () => {
-  let app: UiApplication;
+  let app: InspectApplication;
   let client: Client;
 
   before('setupApplication', async () => {

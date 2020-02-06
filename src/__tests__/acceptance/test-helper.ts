@@ -1,4 +1,9 @@
-import {UiApplication} from '../..';
+// Copyright IBM Corp. 2020. All Rights Reserved.
+// Node module: @loopback/context-explorer
+// This file is licensed under the MIT License.
+// License text available at https://opensource.org/licenses/MIT
+
+import {InspectApplication} from '../..';
 import {
   createRestAppClient,
   givenHttpServerConfig,
@@ -14,7 +19,7 @@ export async function setupApplication(): Promise<AppWithClient> {
     // port: +process.env.PORT,
   });
 
-  const app = new UiApplication({
+  const app = new InspectApplication({
     rest: restConfig,
   });
 
@@ -27,6 +32,6 @@ export async function setupApplication(): Promise<AppWithClient> {
 }
 
 export interface AppWithClient {
-  app: UiApplication;
+  app: InspectApplication;
   client: Client;
 }
