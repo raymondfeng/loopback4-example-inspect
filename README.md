@@ -13,4 +13,10 @@ npm start
 
 Go to http://localhost:3000/inspect
 
+The following query parameters are supported:
+
+- includeParent: include parent contexts
+- includeInjections: include injections
+- includeGraph: include a graph in graphviz dot format
+
 [![LoopBack](<https://github.com/strongloop/loopback-next/raw/master/docs/site/imgs/branding/Powered-by-LoopBack-Badge-(blue)-@2x.png>)](http://loopback.io/)
