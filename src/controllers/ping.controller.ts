@@ -80,6 +80,67 @@ export class PingController {
     @param.query.boolean('includeInjections') includeInjections = true,
     @param.query.boolean('includeParent') includeParent = true,
   ): JSONObject {
-    return this.ctx.inspect({includeInjections, includeParent});
+    const result = this.ctx.inspect({includeInjections, includeParent});
+    console.log();
+    console.log(renderAsGraph(result));
+    return result;
   }
+}
+
+/**
+ * Recursive render the chain of contexts as subgraphs
+ * @param chain - Context level
+ * @param level - Index
+ */
+function renderContextChain(chain: JSONObject[], level = 0) {
+  const ctx = chain[level];
+  let index = 0;
+  const nodes: string[] = [];
+  const bindings = ctx.bindings as JSONObject;
+  for (const key in bindings) {
+    const binding = bindings[key] as JSONObject;
+    nodes.push(
+      `  Binding_${level}_${index++} [label="{${key}|${binding.type}|${
+        binding.scope
+      }}"]`,
+    );
+    const ctor = binding.valueConstructor ?? binding.providerConstructor;
+    if (ctor) {
+      nodes.push(`  Class_${ctor} [label="${ctor}" shape=component]`);
+      nodes.push(`  Binding_${level}_${index - 1} -> Class_${ctor}`);
+    }
+  }
+  let child = '';
+  if (level + 1 < chain.length) {
+    child = renderContextChain(chain, level + 1);
+    child = child.replace(/^/gm, '  ');
+  }
+  const graph = `subgraph cluster_ContextGraph_${level} {
+  label = "${ctx.name}"
+  labelloc = "t";
+  rankdir = "LR";
+  node [shape = record];
+${nodes.join(';\n')}
+
+${child}
+}`;
+  return graph;
+}
+
+/**
+ * Render the ctx chain in graphviz dot format
+ * @param ctx - Context json object
+ */
+function renderAsGraph(ctx: JSONObject) {
+  const chain: JSONObject[] = [];
+  let current: JSONObject | undefined = ctx;
+  while (current != null) {
+    chain.unshift(current);
+    current = current.parent as JSONObject | undefined;
+  }
+  const contextClusters = renderContextChain(chain, 0);
+  const graph = `digraph ContextChain {
+${contextClusters.replace(/^/gm, '  ')}
+}`;
+  return graph;
 }
