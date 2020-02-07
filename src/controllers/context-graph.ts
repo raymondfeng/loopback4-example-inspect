@@ -39,12 +39,22 @@ export class ContextGraph {
   private indexBindings() {
     for (let level = 0; level < this.contextChain.length; level++) {
       const ctx = this.contextChain[level];
+      ctx.tagIndex = {};
       let index = 0;
       const bindings = ctx.bindings as JSONObject;
       for (const key in bindings) {
         const binding = bindings[key] as JSONObject;
         const id = `Binding_${level}_${index++}`;
         binding.id = id;
+        const tagNames = Object.keys((binding.tags ?? {}) as JSONObject);
+        for (const t of tagNames) {
+          let tagged = (ctx.tagIndex as JSONObject)[t] as JSONArray;
+          if (tagged == null) {
+            tagged = [];
+            ctx.tagIndex[t] = tagged;
+          }
+          tagged.push(binding);
+        }
       }
     }
   }
@@ -91,10 +101,28 @@ ${child}
   private getBinding(key: string, level: number) {
     for (let i = level; i >= 0; i--) {
       const bindings = this.contextChain[i].bindings as JSONObject;
+      key = key.split('#')[0];
       const binding = bindings?.[key] as JSONObject;
       if (binding) return binding;
     }
     return undefined;
+  }
+
+  private getBindingsByTag(tag: string, level: number) {
+    const bindings: JSONObject[] = [];
+    for (let i = level; i >= 0; i--) {
+      const ctx = this.contextChain[i];
+      const tagIndex = ctx.tagIndex as JSONObject;
+      let tagged = tagIndex[tag] as JSONObject[];
+      if (tagged != null) {
+        // Exclude bindings if their keys are already in the list
+        tagged = tagged.filter(
+          b => !bindings.some(existing => existing.key === b.key),
+        );
+        bindings.push(...tagged);
+      }
+    }
+    return bindings;
   }
 
   /**
@@ -104,8 +132,10 @@ ${child}
    */
   private renderBindingInjections(binding: JSONObject, level: number) {
     const edges: string[] = [];
+    const targetBindings: string[] = [];
     const ctor = binding.valueConstructor ?? binding.providerConstructor;
     if (ctor) {
+      const classId = `Class_${ctor}`;
       const injections = [];
       if (binding.injections) {
         const args = (binding.injections as JSONObject)
@@ -117,20 +147,22 @@ ${child}
           args.forEach(arg => {
             injections.push(`[${i++}]`);
             const argInjection = arg as JSONObject;
-            const target = this.getBindingForInjection(argInjection, level);
-            if (target) {
-              edges.push(`  Class_${ctor} -> ${target.id}`);
-            }
+            const targetIds = this.getBindingsForInjection(
+              argInjection,
+              level,
+            ).map(b => b!.id as string);
+            targetBindings.push(...targetIds);
           });
         }
         if (props) {
           for (const p in props) {
             injections.push(`${p}`);
             const propInjection = props[p] as JSONObject;
-            const target = this.getBindingForInjection(propInjection, level);
-            if (target) {
-              edges.push(`  Class_${ctor} -> ${target.id}`);
-            }
+            const targetIds = this.getBindingsForInjection(
+              propInjection,
+              level,
+            ).map(b => b!.id as string);
+            targetBindings.push(...targetIds);
           }
         }
       }
@@ -139,24 +171,34 @@ ${child}
         label += '|{' + injections.join('|') + '}';
       }
       this.classes.push(
-        `  Class_${ctor} [label="${label}" shape=record fillcolor=green2]`,
+        `  ${classId} [label="${label}" shape=record fillcolor=khaki]`,
       );
       edges.push(`  ${binding.id} -> Class_${ctor}`);
+      if (targetBindings.length) {
+        edges.push(`  ${classId} -> {${targetBindings.join(',')}}`);
+      }
     }
     return edges;
   }
 
   /**
-   * Find target binding for an injection
+   * Find target bindings for an injection
    * @param injection - Injection object
    * @param level - Context level
    */
-  private getBindingForInjection(injection: JSONObject, level: number) {
+  private getBindingsForInjection(injection: JSONObject, level: number) {
     if (injection.bindingKey) {
       const binding = this.getBinding(injection.bindingKey as string, level);
-      return binding;
+      return binding == null ? [] : [binding];
     }
-    return undefined;
+    if (injection.bindingTagPattern) {
+      const bindings = this.getBindingsByTag(
+        injection.bindingTagPattern as string,
+        level,
+      );
+      return bindings;
+    }
+    return [];
   }
 
   /**
@@ -166,6 +208,7 @@ ${child}
   render(bindingFilter: BindingNodeFilter = () => true) {
     const contextClusters = this.renderContextChain(0, bindingFilter);
     const graph = `digraph ContextGraph {
+  node [shape = record style=filled];
 ${this.classes.join('\n')}
 ${contextClusters.replace(/^/gm, '  ')}
 }`;
