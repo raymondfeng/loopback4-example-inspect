@@ -3,7 +3,12 @@
 // This file is licensed under the MIT License.
 // License text available at https://opensource.org/licenses/MIT
 
-import {JSONObject, JSONArray, ContextTags} from '@loopback/context';
+import {
+  JSONObject,
+  JSONArray,
+  ContextTags,
+  BindingScope,
+} from '@loopback/context';
 
 /**
  * A filter function to control if a binding is to be rendered
@@ -87,7 +92,7 @@ export class ContextGraph {
   label = "${ctx.name}"
   labelloc = "t";
   rankdir = "LR";
-  node [shape = record style=filled];
+  node [shape=record style=filled];
 ${nodes.join(';\n')}
 
 ${child}
@@ -108,7 +113,7 @@ ${child}
         level,
       );
       if (targetBinding != null) {
-        return `  ${targetBinding.id} -> ${binding.id} [style=dotted label="config"]`;
+        return `  ${targetBinding.id} -> ${binding.id} [style=dashed arrowhead=odot color=orange]`;
       }
     }
     return undefined;
@@ -119,8 +124,12 @@ ${child}
    * @param binding - Binding object
    */
   private renderBinding(binding: JSONObject): string {
-    const label = `{${binding.key}|${binding.type}|${binding.scope}}`;
-    return `  ${binding.id} [label="${label}" fillcolor=cyan3]`;
+    const label = `{${binding.key}|{${binding.type}|${binding.scope}}}`;
+    let style = `filled,rounded`;
+    if (binding.scope === BindingScope.SINGLETON) {
+      style = style + ',bold';
+    }
+    return `  ${binding.id} [label="${label}" style="${style}" fillcolor=cyan3]`;
   }
 
   /**
@@ -206,9 +215,11 @@ ${child}
       this.classes.push(
         `  ${classId} [label="${label}" shape=record fillcolor=khaki]`,
       );
-      edges.push(`  ${binding.id} -> Class_${ctor}`);
+      edges.push(`  ${binding.id} -> Class_${ctor} [style=dashed]`);
       if (targetBindings.length) {
-        edges.push(`  ${classId} -> {${targetBindings.join(',')}}`);
+        edges.push(
+          `  ${classId} -> {${targetBindings.join(',')}} [color=blue]`,
+        );
       }
     }
     return edges;
