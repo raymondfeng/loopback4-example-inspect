@@ -70,10 +70,8 @@ export class ContextGraph {
     for (const key in bindings) {
       const binding = bindings[key] as JSONObject;
       if (!bindingFilter(binding)) continue;
-      nodes.push(
-        `  ${binding.id} [label="{${key}|${binding.type}|${binding.scope}}" fillcolor=cyan3]`,
-      );
-      const edges = this.renderBindingInjections(binding, level);
+      nodes.push(this.renderBinding(binding));
+      const edges = this.renderBindingInjections(binding, level, bindingFilter);
       nodes.push(...edges);
     }
     let child = '';
@@ -91,6 +89,15 @@ ${nodes.join(';\n')}
 ${child}
 }`;
     return graph;
+  }
+
+  /**
+   * Render a binding object
+   * @param binding - Binding object
+   */
+  private renderBinding(binding: JSONObject): string {
+    const label = `{${binding.key}|${binding.type}|${binding.scope}}`;
+    return `  ${binding.id} [label="${label}" fillcolor=cyan3]`;
   }
 
   /**
@@ -129,8 +136,13 @@ ${child}
    * Render injections for a binding
    * @param binding - Binding object
    * @param level - Context level
+   * @param bindingFilter - Binding filter
    */
-  private renderBindingInjections(binding: JSONObject, level: number) {
+  private renderBindingInjections(
+    binding: JSONObject,
+    level: number,
+    bindingFilter: BindingNodeFilter,
+  ) {
     const edges: string[] = [];
     const targetBindings: string[] = [];
     const ctor = binding.valueConstructor ?? binding.providerConstructor;
@@ -147,10 +159,9 @@ ${child}
           args.forEach(arg => {
             injections.push(`[${i++}]`);
             const argInjection = arg as JSONObject;
-            const targetIds = this.getBindingsForInjection(
-              argInjection,
-              level,
-            ).map(b => b!.id as string);
+            const targetIds = this.getBindingsForInjection(argInjection, level)
+              .filter(bindingFilter)
+              .map(b => b!.id as string);
             targetBindings.push(...targetIds);
           });
         }
@@ -158,10 +169,9 @@ ${child}
           for (const p in props) {
             injections.push(`${p}`);
             const propInjection = props[p] as JSONObject;
-            const targetIds = this.getBindingsForInjection(
-              propInjection,
-              level,
-            ).map(b => b!.id as string);
+            const targetIds = this.getBindingsForInjection(propInjection, level)
+              .filter(bindingFilter)
+              .map(b => b!.id as string);
             targetBindings.push(...targetIds);
           }
         }
