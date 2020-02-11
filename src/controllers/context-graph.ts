@@ -3,7 +3,7 @@
 // This file is licensed under the MIT License.
 // License text available at https://opensource.org/licenses/MIT
 
-import {JSONObject, JSONArray} from '@loopback/context';
+import {JSONObject, JSONArray, ContextTags} from '@loopback/context';
 
 /**
  * A filter function to control if a binding is to be rendered
@@ -73,6 +73,10 @@ export class ContextGraph {
       nodes.push(this.renderBinding(binding));
       const edges = this.renderBindingInjections(binding, level, bindingFilter);
       nodes.push(...edges);
+      const edgeForConfig = this.renderConfig(binding, level);
+      if (edgeForConfig != null) {
+        nodes.push(edgeForConfig);
+      }
     }
     let child = '';
     if (level + 1 < this.contextChain.length) {
@@ -89,6 +93,25 @@ ${nodes.join(';\n')}
 ${child}
 }`;
     return graph;
+  }
+
+  /**
+   * Create an edge for a binding to its configuration
+   * @param binding - Binding object
+   * @param level - Context level
+   */
+  private renderConfig(binding: JSONObject, level: number) {
+    const tagMap = binding.tags as JSONObject;
+    if (tagMap?.[ContextTags.CONFIGURATION_FOR]) {
+      const targetBinding = this.getBinding(
+        tagMap[ContextTags.CONFIGURATION_FOR] as string,
+        level,
+      );
+      if (targetBinding != null) {
+        return `  ${targetBinding.id} -> ${binding.id} [style=dotted label="config"]`;
+      }
+    }
+    return undefined;
   }
 
   /**
