@@ -105,7 +105,7 @@ ${child}
    * @param binding - Binding object
    * @param level - Context level
    */
-  private renderConfig(binding: JSONObject, level: number) {
+  protected renderConfig(binding: JSONObject, level: number) {
     const tagMap = binding.tags as JSONObject;
     if (tagMap?.[ContextTags.CONFIGURATION_FOR]) {
       const targetBinding = this.getBinding(
@@ -123,12 +123,20 @@ ${child}
    * Render a binding object
    * @param binding - Binding object
    */
-  private renderBinding(binding: JSONObject): string {
-    const label = `{${binding.key}|{${binding.type}|${binding.scope}}}`;
+  protected renderBinding(binding: JSONObject): string {
     let style = `filled,rounded`;
     if (binding.scope === BindingScope.SINGLETON) {
       style = style + ',bold';
     }
+    const tags = binding.tags as JSONObject;
+    const tagPairs: string[] = [];
+    if (tags) {
+      for (const t in tags) {
+        tagPairs.push(`${t}:${tags[t]}`);
+      }
+    }
+    const tagLabel = tagPairs.length ? `|${tagPairs.join('\\l')}\\l` : '';
+    const label = `{${binding.key}|{${binding.type}|${binding.scope}}${tagLabel}}`;
     return `  ${binding.id} [label="${label}" style="${style}" fillcolor=cyan3]`;
   }
 
@@ -179,7 +187,6 @@ ${child}
     const targetBindings: string[] = [];
     const ctor = binding.valueConstructor ?? binding.providerConstructor;
     if (ctor) {
-      const classId = `Class_${ctor}`;
       const injections = [];
       if (binding.injections) {
         const args = (binding.injections as JSONObject)
@@ -212,9 +219,12 @@ ${child}
       if (injections.length) {
         label += '|{' + injections.join('|') + '}';
       }
-      this.classes.push(
-        `  ${classId} [label="${label}" shape=record fillcolor=khaki]`,
-      );
+
+      const classId = `Class_${ctor}`;
+      const classNode = `  ${classId} [label="${label}" shape=record fillcolor=khaki]`;
+      if (!this.classes.includes(classNode)) {
+        this.classes.push(classNode);
+      }
       edges.push(`  ${binding.id} -> Class_${ctor} [style=dashed]`);
       if (targetBindings.length) {
         edges.push(

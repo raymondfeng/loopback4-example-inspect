@@ -105,12 +105,17 @@ export class PingController {
   async graph(
     @param.query.boolean('includeInjections') includeInjections = true,
     @param.query.boolean('includeParent') includeParent = true,
+    @param.query.string('format') format = 'svg',
   ) {
     const result = this.ctx.inspect({includeInjections, includeParent});
     const graph = new ContextGraph(result).render();
 
-    const svg = await renderGraph(graph);
-    this.ctx.response.contentType('image/svg+xml').send(svg);
+    if (format === 'dot') {
+      this.ctx.response.contentType('text/plain').send(graph);
+    } else {
+      const svg = await renderGraph(graph);
+      this.ctx.response.contentType('image/svg+xml').send(svg);
+    }
     return this.ctx.response;
   }
 }

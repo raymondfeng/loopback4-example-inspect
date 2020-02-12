@@ -15,10 +15,16 @@ Go to http://localhost:3000/inspect to fetch a JSON document for the context hie
 
 The following query parameters are supported:
 
-- includeParent: include parent contexts
-- includeInjections: include injections
-- includeGraph: include a graph in graphviz dot format
+- includeParent: include parent contexts (default: true)
+- includeInjections: include injections (default: true)
+- includeGraph: include a graph in graphviz dot format (default: true)
 
 Go to http://localhost:3000/graph to render the LoopBack application as a SVG diagram.
+
+The following query parameters are supported:
+
+- includeParent: include parent contexts (default: true)
+- includeInjections: include injections (default: true)
+- format: dot or svg (default: svg)
 
 [![LoopBack](<https://github.com/strongloop/loopback-next/raw/master/docs/site/imgs/branding/Powered-by-LoopBack-Badge-(blue)-@2x.png>)](http://loopback.io/)
