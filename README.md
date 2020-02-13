@@ -11,20 +11,34 @@ npm i
 npm start
 ```
 
-Go to http://localhost:3000/inspect to fetch a JSON document for the context hierarchy.
+### Endpoints
 
-The following query parameters are supported:
+1. http://localhost:3000/inspect: Fetch a JSON document for the context hierarchy.
 
-- includeParent: include parent contexts (default: true)
-- includeInjections: include injections (default: true)
-- includeGraph: include a graph in graphviz dot format (default: true)
+   The following query parameters are supported:
 
-Go to http://localhost:3000/graph to render the LoopBack application as a SVG diagram.
+   - includeParent: include parent contexts (default: true)
+   - includeInjections: include injections (default: true)
+   - includeGraph: include a graph in [graphviz](https://www.graphviz.org/) dot format (default: true)
 
-The following query parameters are supported:
+2. http://localhost:3000/graph: Render the LoopBack application as a SVG diagram.
 
-- includeParent: include parent contexts (default: true)
-- includeInjections: include injections (default: true)
-- format: dot or svg (default: svg)
+   The following query parameters are supported:
+
+   - includeParent: include parent contexts (default: true)
+   - includeInjections: include injections (default: true)
+   - format: dot or svg (default: svg)
+
+3. http://localhost:3000/graph-d3: Display the graph using [d3-graphviz](https://github.com/magjac/d3-graphviz).
+
+### Sample graph
+
+![graph.svg](sample-graph.svg)
+
+## Test
+
+```sh
+npm test
+```
 
 [![LoopBack](<https://github.com/strongloop/loopback-next/raw/master/docs/site/imgs/branding/Powered-by-LoopBack-Badge-(blue)-@2x.png>)](http://loopback.io/)
