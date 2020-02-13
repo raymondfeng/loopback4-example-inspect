@@ -48,6 +48,6 @@ describe('PingController', () => {
   it('invokes GET /graph?format=dot', async () => {
     const res = await client.get('/graph?format=dot').expect(200);
     expect(res.get('content-type')).to.match(/^text\/plain/);
-    expect(res.text).to.match(/^digraph ContextGraph \{/);
+    expect(res.text).to.match(/^digraph "?ContextGraph"? \{/);
   });
 });

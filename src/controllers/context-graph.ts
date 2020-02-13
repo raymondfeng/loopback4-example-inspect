@@ -10,14 +10,18 @@ import {
   BindingScope,
 } from '@loopback/context';
 
+import {digraph, attribute, ICluster, IContext} from 'ts-graphviz';
+
 /**
  * A filter function to control if a binding is to be rendered
  */
 export type BindingNodeFilter = (binding: JSONObject) => boolean;
 
+/**
+ * Options for ContextGraph
+ */
 export type ContextGraphOptions = {
   bindingFilter?: BindingNodeFilter;
-  flattenEdges?: boolean;
 };
 
 /**
@@ -74,11 +78,19 @@ export class ContextGraph {
 
   /**
    * Recursive render the chain of contexts as subgraphs
+   * @param parent - Parent subgraph
    * @param level - Level of the context in the chain
    */
-  private renderContextChain(level: number) {
+  private renderContextChain(parent: ICluster<string>, level: number) {
     const ctx = this.contextChain[level];
-    const nodes: string[] = [];
+    const ctxName = ctx.name as string;
+    const subgraph = parent.createSubgraph(`cluster_${ctxName}`);
+
+    subgraph.apply({
+      [attribute.label]: ctxName,
+      [attribute.labelloc]: 't',
+    });
+
     const bindings = ctx.bindings as JSONObject;
     for (const key in bindings) {
       const binding = bindings[key] as JSONObject;
@@ -87,29 +99,16 @@ export class ContextGraph {
         !this.options.bindingFilter(binding)
       )
         continue;
-      nodes.push(this.renderBinding(binding));
-      const edges = this.renderBindingInjections(binding, level);
-      nodes.push(...edges);
-      const edgeForConfig = this.renderConfig(binding, level);
-      if (edgeForConfig != null) {
-        nodes.push(edgeForConfig);
-      }
+      this.renderBinding(subgraph, binding);
+      this.renderBindingInjections(subgraph, binding, level);
+      this.renderConfig(subgraph, binding, level);
     }
-    let child = '';
-    if (level + 1 < this.contextChain.length) {
-      child = this.renderContextChain(level + 1);
-      child = child.replace(/^/gm, '  ');
-    }
-    const graph = `subgraph cluster_ContextGraph_${level} {
-  label = "${ctx.name}"
-  labelloc = "t";
-  rankdir = "LR";
-  node [shape=record style=filled];
-${nodes.join(';\n')}
 
-${child}
-}`;
-    return graph;
+    if (level + 1 < this.contextChain.length) {
+      this.renderContextChain(subgraph, level + 1);
+    }
+
+    return subgraph;
   }
 
   /**
@@ -117,7 +116,11 @@ ${child}
    * @param binding - Binding object
    * @param level - Context level
    */
-  protected renderConfig(binding: JSONObject, level: number) {
+  protected renderConfig(
+    parent: ICluster<string>,
+    binding: JSONObject,
+    level: number,
+  ) {
     const tagMap = binding.tags as JSONObject;
     if (tagMap?.[ContextTags.CONFIGURATION_FOR]) {
       const targetBinding = this.getBinding(
@@ -125,7 +128,13 @@ ${child}
         level,
       );
       if (targetBinding != null) {
-        return `  ${targetBinding.id} -> ${binding.id} [style=dashed arrowhead=odot color=orange]`;
+        return parent
+          .createEdge(targetBinding.id as string, binding.id as string)
+          .attributes.apply({
+            [attribute.style]: 'dashed',
+            [attribute.arrowhead]: 'odot',
+            [attribute.color]: 'orange',
+          });
       }
     }
     return undefined;
@@ -133,9 +142,10 @@ ${child}
 
   /**
    * Render a binding object
+   * @param parent - Parent subgraph
    * @param binding - Binding object
    */
-  protected renderBinding(binding: JSONObject): string {
+  protected renderBinding(parent: ICluster<string>, binding: JSONObject) {
     let style = `filled,rounded`;
     if (binding.scope === BindingScope.SINGLETON) {
       style = style + ',bold';
@@ -149,7 +159,13 @@ ${child}
     }
     const tagLabel = tagPairs.length ? `|${tagPairs.join('\\l')}\\l` : '';
     const label = `{${binding.key}|{${binding.type}|${binding.scope}}${tagLabel}}`;
-    return `  ${binding.id} [label="${label}" style="${style}" fillcolor=cyan3]`;
+
+    return parent.createNode(binding.id as string).attributes.apply({
+      [attribute.label]: label,
+      [attribute.shape]: 'record',
+      [attribute.style]: style,
+      [attribute.fillcolor]: 'cyan3',
+    });
   }
 
   /**
@@ -186,16 +202,25 @@ ${child}
 
   /**
    * Render injections for a binding
+   * @param parent - Parent subgraph
    * @param binding - Binding object
    * @param level - Context level
    */
-  private renderBindingInjections(binding: JSONObject, level: number) {
-    const edges: string[] = [];
+  private renderBindingInjections(
+    parent: ICluster<string>,
+    binding: JSONObject,
+    level: number,
+  ) {
     const targetBindings: string[] = [];
     const ctor = binding.valueConstructor ?? binding.providerConstructor;
     if (ctor) {
       const bindingFilter = this.options?.bindingFilter ?? (() => true);
       const injections = [];
+      // For singletons, search this level and up
+      const startingLevel =
+        binding.scope === BindingScope.SINGLETON
+          ? level
+          : this.contextChain.length - 1;
       if (binding.injections) {
         const args = (binding.injections as JSONObject)
           .constructorArguments as JSONArray;
@@ -206,7 +231,10 @@ ${child}
           args.forEach(arg => {
             injections.push(`[${i++}]`);
             const argInjection = arg as JSONObject;
-            const targetIds = this.getBindingsForInjection(argInjection, level)
+            const targetIds = this.getBindingsForInjection(
+              argInjection,
+              startingLevel,
+            )
               .filter(bindingFilter)
               .map(b => b!.id as string);
             targetBindings.push(...targetIds);
@@ -216,37 +244,42 @@ ${child}
           for (const p in props) {
             injections.push(`${p}`);
             const propInjection = props[p] as JSONObject;
-            const targetIds = this.getBindingsForInjection(propInjection, level)
+            const targetIds = this.getBindingsForInjection(
+              propInjection,
+              startingLevel,
+            )
               .filter(bindingFilter)
               .map(b => b!.id as string);
             targetBindings.push(...targetIds);
           }
         }
       }
-      let label = ctor;
+      let label = ctor as string;
       if (injections.length) {
         label += '|{' + injections.join('|') + '}';
       }
 
+      // FIXME(rfeng): We might have classes with the same name
       const classId = `Class_${ctor}`;
-      const classNode = `  ${classId} [label="${label}" shape=record fillcolor=khaki]`;
-      if (!this.classes.includes(classNode)) {
-        this.classes.push(classNode);
-      }
-      edges.push(`  ${binding.id} -> Class_${ctor} [style=dashed]`);
-      if (this.options.flattenEdges) {
-        for (const b of targetBindings) {
-          edges.push(`  ${classId} -> ${b} [color=blue]`);
-        }
-      } else {
-        if (targetBindings.length) {
-          edges.push(
-            `  ${classId} -> {${targetBindings.join(',')}} [color=blue]`,
-          );
-        }
+      const rootGraph = getRootGraph(parent)!;
+      const node = rootGraph.createNode(classId);
+      node.attributes.apply({
+        [attribute.label]: label,
+        [attribute.style]: 'filled',
+        [attribute.shape]: 'record',
+        [attribute.fillcolor]: 'khaki',
+      });
+
+      parent
+        .createEdge(binding.id as string, classId)
+        .attributes.apply({[attribute.style]: 'dashed'});
+
+      for (const b of targetBindings) {
+        parent
+          .createEdge(classId, b)
+          .attributes.apply({[attribute.color]: 'blue'});
       }
     }
-    return edges;
   }
 
   /**
@@ -273,12 +306,25 @@ ${child}
    * Render the context graph in graphviz dot format
    */
   render() {
-    const contextClusters = this.renderContextChain(0);
-    const graph = `digraph ContextGraph {
-  node [shape = record style=filled];
-${this.classes.join('\n')}
-${contextClusters.replace(/^/gm, '  ')}
-}`;
-    return graph;
+    const graph = digraph('ContextGraph');
+    this.renderContextChain(graph, 0);
+    return graph.toDot();
   }
+}
+
+/**
+ * Find the root graph for the given subgraph
+ * @param g - Subgraph
+ */
+function getRootGraph(g: ICluster<string>) {
+  let current: ICluster<string> | IContext = g;
+  while (isICluster(current) && current.context != null) {
+    current = current.context;
+  }
+  return !isICluster(current) ? current.root : undefined;
+}
+
+function isICluster(g: ICluster<string> | IContext): g is ICluster<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (g as any).context != null;
 }
