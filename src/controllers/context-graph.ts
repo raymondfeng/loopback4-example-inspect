@@ -15,6 +15,11 @@ import {
  */
 export type BindingNodeFilter = (binding: JSONObject) => boolean;
 
+export type ContextGraphOptions = {
+  bindingFilter?: BindingNodeFilter;
+  flattenEdges?: boolean;
+};
+
 /**
  * A graph for context hierarchy
  */
@@ -29,7 +34,10 @@ export class ContextGraph {
    */
   private readonly contextChain: JSONObject[] = [];
 
-  constructor(ctx: JSONObject) {
+  constructor(
+    ctx: JSONObject,
+    private readonly options: ContextGraphOptions = {},
+  ) {
     let current: JSONObject | undefined = ctx;
     while (current != null) {
       this.contextChain.unshift(current);
@@ -68,15 +76,19 @@ export class ContextGraph {
    * Recursive render the chain of contexts as subgraphs
    * @param level - Level of the context in the chain
    */
-  private renderContextChain(level: number, bindingFilter: BindingNodeFilter) {
+  private renderContextChain(level: number) {
     const ctx = this.contextChain[level];
     const nodes: string[] = [];
     const bindings = ctx.bindings as JSONObject;
     for (const key in bindings) {
       const binding = bindings[key] as JSONObject;
-      if (!bindingFilter(binding)) continue;
+      if (
+        typeof this.options.bindingFilter === 'function' &&
+        !this.options.bindingFilter(binding)
+      )
+        continue;
       nodes.push(this.renderBinding(binding));
-      const edges = this.renderBindingInjections(binding, level, bindingFilter);
+      const edges = this.renderBindingInjections(binding, level);
       nodes.push(...edges);
       const edgeForConfig = this.renderConfig(binding, level);
       if (edgeForConfig != null) {
@@ -85,7 +97,7 @@ export class ContextGraph {
     }
     let child = '';
     if (level + 1 < this.contextChain.length) {
-      child = this.renderContextChain(level + 1, bindingFilter);
+      child = this.renderContextChain(level + 1);
       child = child.replace(/^/gm, '  ');
     }
     const graph = `subgraph cluster_ContextGraph_${level} {
@@ -176,17 +188,13 @@ ${child}
    * Render injections for a binding
    * @param binding - Binding object
    * @param level - Context level
-   * @param bindingFilter - Binding filter
    */
-  private renderBindingInjections(
-    binding: JSONObject,
-    level: number,
-    bindingFilter: BindingNodeFilter,
-  ) {
+  private renderBindingInjections(binding: JSONObject, level: number) {
     const edges: string[] = [];
     const targetBindings: string[] = [];
     const ctor = binding.valueConstructor ?? binding.providerConstructor;
     if (ctor) {
+      const bindingFilter = this.options?.bindingFilter ?? (() => true);
       const injections = [];
       if (binding.injections) {
         const args = (binding.injections as JSONObject)
@@ -226,10 +234,16 @@ ${child}
         this.classes.push(classNode);
       }
       edges.push(`  ${binding.id} -> Class_${ctor} [style=dashed]`);
-      if (targetBindings.length) {
-        edges.push(
-          `  ${classId} -> {${targetBindings.join(',')}} [color=blue]`,
-        );
+      if (this.options.flattenEdges) {
+        for (const b of targetBindings) {
+          edges.push(`  ${classId} -> ${b} [color=blue]`);
+        }
+      } else {
+        if (targetBindings.length) {
+          edges.push(
+            `  ${classId} -> {${targetBindings.join(',')}} [color=blue]`,
+          );
+        }
       }
     }
     return edges;
@@ -257,10 +271,9 @@ ${child}
 
   /**
    * Render the context graph in graphviz dot format
-   * @param bindingFilter - Binding filter function
    */
-  render(bindingFilter: BindingNodeFilter = () => true) {
-    const contextClusters = this.renderContextChain(0, bindingFilter);
+  render() {
+    const contextClusters = this.renderContextChain(0);
     const graph = `digraph ContextGraph {
   node [shape = record style=filled];
 ${this.classes.join('\n')}

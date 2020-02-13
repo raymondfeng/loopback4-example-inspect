@@ -17,7 +17,9 @@ export async function main(options: ApplicationConfig = {}) {
   console.log(`Server is running at ${url}`);
   console.log(`Ping: ${url}/ping`);
   console.log(`Inspect: ${url}/inspect`);
-  console.log(`Graph: ${url}/graph`);
+  console.log(`SVG Graph: ${url}/graph`);
+  console.log(`Graphviz DOT: ${url}/graph?format=dot`);
+  console.log(`D3 Graph: ${url}/graph-d3.html`);
 
   return app;
 }
