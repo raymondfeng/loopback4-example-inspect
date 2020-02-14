@@ -21,18 +21,20 @@ export type BindingNodeFilter = (binding: JSONObject) => boolean;
  * Options for ContextGraph
  */
 export type ContextGraphOptions = {
+  /**
+   * A filter function to select bindings for rendering
+   */
   bindingFilter?: BindingNodeFilter;
+  /**
+   * A flag to control if dependencies are subject to the binding filter
+   */
+  alwaysIncludeDependencies?: boolean;
 };
 
 /**
  * A graph for context hierarchy
  */
 export class ContextGraph {
-  /**
-   * Class nodes
-   */
-  private readonly classes: string[] = [];
-
   /**
    * Context json objects in the chain from root to leaf
    */
@@ -183,6 +185,11 @@ export class ContextGraph {
     return undefined;
   }
 
+  /**
+   * Find bindings by tag
+   * @param tag - Tag name
+   * @param level - Context level
+   */
   private getBindingsByTag(tag: string, level: number) {
     const bindings: JSONObject[] = [];
     for (let i = level; i >= 0; i--) {
@@ -292,7 +299,7 @@ export class ContextGraph {
       const binding = this.getBinding(injection.bindingKey as string, level);
       return binding == null ? [] : [binding];
     }
-    if (injection.bindingTagPattern) {
+    if (typeof injection.bindingTagPattern === 'string') {
       const bindings = this.getBindingsByTag(
         injection.bindingTagPattern as string,
         level,
