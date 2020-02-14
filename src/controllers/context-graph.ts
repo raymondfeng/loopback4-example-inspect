@@ -13,9 +13,25 @@ import {
 import {digraph, attribute, ICluster, IContext} from 'ts-graphviz';
 
 /**
+ * A wrapper class for context, binding, and its level in the chain
+ */
+export class ContextBinding {
+  public readonly id: string;
+  constructor(
+    public readonly context: JSONObject,
+    public readonly binding: JSONObject,
+    public readonly level: number,
+  ) {
+    const keys = Object.keys(this.context.bindings as JSONObject);
+    const index = keys.indexOf(this.binding.key as string);
+    this.id = `Binding_${this.level}_${index}`;
+  }
+}
+
+/**
  * A filter function to control if a binding is to be rendered
  */
-export type BindingNodeFilter = (binding: JSONObject) => boolean;
+export type BindingNodeFilter = (binding: ContextBinding) => boolean;
 
 /**
  * Options for ContextGraph
@@ -39,6 +55,10 @@ export class ContextGraph {
    * Context json objects in the chain from root to leaf
    */
   private readonly contextChain: JSONObject[] = [];
+  /**
+   * Tag indexes for the context chain
+   */
+  private readonly tagIndexes: Record<string, ContextBinding[]>[] = [];
 
   constructor(
     ctx: JSONObject,
@@ -58,21 +78,18 @@ export class ContextGraph {
   private indexBindings() {
     for (let level = 0; level < this.contextChain.length; level++) {
       const ctx = this.contextChain[level];
-      ctx.tagIndex = {};
-      let index = 0;
+      this.tagIndexes[level] = {};
       const bindings = ctx.bindings as JSONObject;
       for (const key in bindings) {
         const binding = bindings[key] as JSONObject;
-        const id = `Binding_${level}_${index++}`;
-        binding.id = id;
         const tagNames = Object.keys((binding.tags ?? {}) as JSONObject);
         for (const t of tagNames) {
-          let tagged = (ctx.tagIndex as JSONObject)[t] as JSONArray;
+          let tagged = this.tagIndexes[level][t];
           if (tagged == null) {
             tagged = [];
-            ctx.tagIndex[t] = tagged;
+            this.tagIndexes[level][t] = tagged;
           }
-          tagged.push(binding);
+          tagged.push(new ContextBinding(ctx, binding, level));
         }
       }
     }
@@ -96,14 +113,15 @@ export class ContextGraph {
     const bindings = ctx.bindings as JSONObject;
     for (const key in bindings) {
       const binding = bindings[key] as JSONObject;
+      const ctxBinding = new ContextBinding(ctx, binding, level);
       if (
         typeof this.options.bindingFilter === 'function' &&
-        !this.options.bindingFilter(binding)
+        !this.options.bindingFilter(ctxBinding)
       )
         continue;
-      this.renderBinding(subgraph, binding);
-      this.renderBindingInjections(subgraph, binding, level);
-      this.renderConfig(subgraph, binding, level);
+      this.renderBinding(subgraph, ctxBinding);
+      this.renderBindingInjections(subgraph, ctxBinding);
+      this.renderConfig(subgraph, ctxBinding);
     }
 
     if (level + 1 < this.contextChain.length) {
@@ -120,8 +138,7 @@ export class ContextGraph {
    */
   protected renderConfig(
     parent: ICluster<string>,
-    binding: JSONObject,
-    level: number,
+    {binding, level, id}: ContextBinding,
   ) {
     const tagMap = binding.tags as JSONObject;
     if (tagMap?.[ContextTags.CONFIGURATION_FOR]) {
@@ -130,13 +147,11 @@ export class ContextGraph {
         level,
       );
       if (targetBinding != null) {
-        return parent
-          .createEdge(targetBinding.id as string, binding.id as string)
-          .attributes.apply({
-            [attribute.style]: 'dashed',
-            [attribute.arrowhead]: 'odot',
-            [attribute.color]: 'orange',
-          });
+        return parent.createEdge(targetBinding.id, id).attributes.apply({
+          [attribute.style]: 'dashed',
+          [attribute.arrowhead]: 'odot',
+          [attribute.color]: 'orange',
+        });
       }
     }
     return undefined;
@@ -145,9 +160,12 @@ export class ContextGraph {
   /**
    * Render a binding object
    * @param parent - Parent subgraph
-   * @param binding - Binding object
+   * @param binding - Context Binding object
    */
-  protected renderBinding(parent: ICluster<string>, binding: JSONObject) {
+  protected renderBinding(
+    parent: ICluster<string>,
+    {binding, id}: ContextBinding,
+  ) {
     let style = `filled,rounded`;
     if (binding.scope === BindingScope.SINGLETON) {
       style = style + ',bold';
@@ -162,7 +180,7 @@ export class ContextGraph {
     const tagLabel = tagPairs.length ? `|${tagPairs.join('\\l')}\\l` : '';
     const label = `{${binding.key}|{${binding.type}|${binding.scope}}${tagLabel}}`;
 
-    return parent.createNode(binding.id as string).attributes.apply({
+    return parent.createNode(id).attributes.apply({
       [attribute.label]: label,
       [attribute.shape]: 'record',
       [attribute.style]: style,
@@ -177,10 +195,11 @@ export class ContextGraph {
    */
   private getBinding(key: string, level: number) {
     for (let i = level; i >= 0; i--) {
-      const bindings = this.contextChain[i].bindings as JSONObject;
+      const ctx = this.contextChain[i];
+      const bindings = ctx.bindings as JSONObject;
       key = key.split('#')[0];
       const binding = bindings?.[key] as JSONObject;
-      if (binding) return binding;
+      if (binding) return new ContextBinding(ctx, binding, i);
     }
     return undefined;
   }
@@ -191,15 +210,17 @@ export class ContextGraph {
    * @param level - Context level
    */
   private getBindingsByTag(tag: string, level: number) {
-    const bindings: JSONObject[] = [];
+    const bindings: ContextBinding[] = [];
     for (let i = level; i >= 0; i--) {
-      const ctx = this.contextChain[i];
-      const tagIndex = ctx.tagIndex as JSONObject;
-      let tagged = tagIndex[tag] as JSONObject[];
+      const tagIndex = this.tagIndexes[i];
+      let tagged = tagIndex[tag];
       if (tagged != null) {
         // Exclude bindings if their keys are already in the list
         tagged = tagged.filter(
-          b => !bindings.some(existing => existing.key === b.key),
+          ctxBinding =>
+            !bindings.some(
+              existing => existing.binding.key === ctxBinding.binding.key,
+            ),
         );
         bindings.push(...tagged);
       }
@@ -215,8 +236,7 @@ export class ContextGraph {
    */
   private renderBindingInjections(
     parent: ICluster<string>,
-    binding: JSONObject,
-    level: number,
+    {binding, level, id}: ContextBinding,
   ) {
     const targetBindings: string[] = [];
     const ctor = binding.valueConstructor ?? binding.providerConstructor;
@@ -243,7 +263,7 @@ export class ContextGraph {
               startingLevel,
             )
               .filter(bindingFilter)
-              .map(b => b!.id as string);
+              .map(b => b.id);
             targetBindings.push(...targetIds);
           });
         }
@@ -256,7 +276,7 @@ export class ContextGraph {
               startingLevel,
             )
               .filter(bindingFilter)
-              .map(b => b!.id as string);
+              .map(b => b.id);
             targetBindings.push(...targetIds);
           }
         }
@@ -278,7 +298,7 @@ export class ContextGraph {
       });
 
       parent
-        .createEdge(binding.id as string, classId)
+        .createEdge(id, classId)
         .attributes.apply({[attribute.style]: 'dashed'});
 
       for (const b of targetBindings) {

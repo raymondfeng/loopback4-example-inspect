@@ -94,8 +94,6 @@ export class PingController {
     if (includeGraph) {
       const graph = new ContextGraph(result).render();
       result.graph = graph;
-      // console.log();
-      // console.log(graph);
     }
     return result;
   }
