@@ -3,7 +3,7 @@
 // This file is licensed under the MIT License.
 // License text available at https://opensource.org/licenses/MIT
 
-import {inject, JSONObject} from '@loopback/context';
+import {inject, JSONObject, Context} from '@loopback/context';
 import {
   get,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -115,5 +115,26 @@ export class PingController {
       this.ctx.response.contentType('image/svg+xml').send(svg);
     }
     return this.ctx.response;
+  }
+
+  /**
+   * Create an array of graphviz dot graphs for d3 animations
+   */
+  @get('/dots')
+  async dots() {
+    let ctx: Context | undefined = this.ctx;
+    const dots: string[] = [];
+    while (ctx != null) {
+      // Add one graph with injections
+      const ctxData = ctx.inspect({
+        includeParent: true,
+        includeInjections: true,
+      });
+      const graph = new ContextGraph(ctxData).render();
+      dots.push(graph);
+      ctx = ctx.parent;
+    }
+    // Show app, app+server, and app+server+request
+    return dots.reverse();
   }
 }

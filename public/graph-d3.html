@@ -13,7 +13,23 @@
     <div id="graph" style="text-align: center;"></div>
 
     <script>
-      var graphviz = d3
+      var dots = [];
+      var dotIndex = 0;
+
+      function transitionFactory() {
+        return d3
+          .transition('main')
+          .ease(d3.easeLinear)
+          .delay(50)
+          .duration(1000 * dotIndex);
+      }
+
+      async function fetchDots() {
+        const res = await fetch('/dots');
+        dots = JSON.parse(await res.text());
+      }
+
+      const graphviz = d3
         .select('#graph')
         .graphviz({
           engine: 'fdp',
@@ -21,20 +37,20 @@
           width: window.screen.availWidth,
           height: window.screen.availHeight,
         })
-        .transition(function() {
-          return d3
-            .transition('main')
-            .ease(d3.easeLinear)
-            .delay(10)
-            .duration(1000);
-        })
         .logEvents(true)
+        .transition(transitionFactory)
+        .tweenShapes(true)
         .on('initEnd', render);
 
       async function render() {
-        const res = await fetch('/graph?format=dot');
-        const dot = await res.text();
-        graphviz.renderDot(dot);
+        if (dots.length === 0) await fetchDots();
+        const dot = dots[dotIndex % dots.length];
+        graphviz.renderDot(dot).on('end', function() {
+          dotIndex++;
+          if (dotIndex !== dots.length) {
+            render();
+          }
+        });
       }
     </script>
   </body>

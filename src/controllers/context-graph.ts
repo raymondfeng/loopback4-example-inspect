@@ -330,12 +330,19 @@ export class ContextGraph {
   }
 
   /**
+   * Build a direct graph
+   */
+  build() {
+    const graph = digraph('ContextGraph');
+    this.renderContextChain(graph, 0);
+    return graph;
+  }
+
+  /**
    * Render the context graph in graphviz dot format
    */
   render() {
-    const graph = digraph('ContextGraph');
-    this.renderContextChain(graph, 0);
-    return graph.toDot();
+    return this.build().toDot();
   }
 }
 
