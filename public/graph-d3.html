@@ -13,16 +13,20 @@
     <div id="graph" style="text-align: center;"></div>
 
     <script>
-      var dotIndex = 0;
       var graphviz = d3
         .select('#graph')
-        .graphviz({engine: 'fdp'})
+        .graphviz({
+          engine: 'fdp',
+          fit: true,
+          width: window.screen.availWidth,
+          height: window.screen.availHeight,
+        })
         .transition(function() {
           return d3
             .transition('main')
             .ease(d3.easeLinear)
-            .delay(500)
-            .duration(1500);
+            .delay(10)
+            .duration(1000);
         })
         .logEvents(true)
         .on('initEnd', render);
