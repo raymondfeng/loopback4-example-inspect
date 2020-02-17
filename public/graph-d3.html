@@ -2,6 +2,7 @@
 <html>
   <meta charset="utf-8" />
   <body>
+    <a href="/graph-d3.html">Reload</a>
     <script src="//d3js.org/d3.v4.min.js"></script>
 
     <script
@@ -9,6 +10,88 @@
       type="javascript/worker"
     ></script>
     <script src="https://unpkg.com/d3-graphviz@2.6.1/build/d3-graphviz.min.js"></script>
+    <script src="https://unpkg.com/graphlib-dot@0.6.4/dist/graphlib-dot.min.js"></script>
+
+    <script>
+      /**
+       * Find dependencies of a set of starting nodes, including transitive ones
+       * @param graph - Graph object
+       * @param startingNodes - A set of nodes as starting ones
+       */
+      function findDependencies(graph, startingNodes) {
+        const visited = new Set();
+        let nodesToBeAdded = new Set(startingNodes);
+        while (nodesToBeAdded.size !== 0) {
+          // Try to find nodes that are successors of starting nodes
+          const matched = new Set();
+          for (const node of nodesToBeAdded) {
+            visited.add(node);
+            const successors = graph.successors(node);
+            for (const s of successors) {
+              matched.add(s);
+            }
+            /*
+            const predecessors = graph.predecessors(node);
+            for (const s of predecessors) {
+              matched.add(s);
+            }
+            */
+          }
+          // Only include nodes found but not visited yet
+          nodesToBeAdded = new Set();
+          for (const node of matched) {
+            if (!visited.has(node)) {
+              nodesToBeAdded.add(node);
+            }
+            visited.add(node);
+          }
+        }
+        return visited;
+      }
+
+      /**
+       * Filter the graph with a set of starting nodes and their dependencies
+       * @param graph - Graph object
+       * @param startingNodes - A set of starting nodes
+       */
+      function filterGraph(graph, startingNodes) {
+        const selected = findDependencies(graph, startingNodes);
+        const nodesToBeRemoved = graph
+          .nodes()
+          .filter(n => !selected.has(n) && graph.children(n).length === 0);
+        for (const node of nodesToBeRemoved) {
+          graph.removeNode(node);
+        }
+        removeEmptySubgraphs(graph);
+      }
+
+      function removeEmptySubgraphs(graph) {
+        // Remove empty subgraphs
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const emptySubgraphs = graph
+            .nodes()
+            .filter(
+              n => n.startsWith('cluster_') && graph.children(n).length === 0,
+            );
+          if (emptySubgraphs.length === 0) break;
+          for (const node of emptySubgraphs) {
+            graph.removeNode(node);
+          }
+        }
+      }
+
+      function selectNodes(dotGraph, startingNodes) {
+        const graph = graphlibDot.read(normalizeDot(dotGraph));
+        filterGraph(graph, startingNodes);
+        return graphlibDot.write(graph);
+      }
+
+      function normalizeDot(dotGraph) {
+        // graphlib-dot does not support the trailing `,` after the last attribute
+        return dotGraph.replace(/,(\s+\];)/gm, '$1');
+      }
+    </script>
 
     <div id="graph" style="text-align: center;"></div>
 
@@ -21,7 +104,7 @@
           .transition('main')
           .ease(d3.easeLinear)
           .delay(50)
-          .duration(1000 * dotIndex);
+          .duration(500 * dotIndex);
       }
 
       async function fetchDots() {
@@ -39,18 +122,42 @@
         })
         .logEvents(true)
         .transition(transitionFactory)
-        .tweenShapes(true)
+        .tweenShapes(false)
         .on('initEnd', render);
 
       async function render() {
         if (dots.length === 0) await fetchDots();
-        const dot = dots[dotIndex % dots.length];
+        const dot = dots[dotIndex];
         graphviz.renderDot(dot).on('end', function() {
           dotIndex++;
-          if (dotIndex !== dots.length) {
+          if (dotIndex < dots.length) {
             render();
+          } else {
+            const nodes = d3.selectAll('.node');
+            nodes.on('click', renderNode);
           }
         });
+      }
+
+      function renderNode() {
+        const current = d3.select(this);
+        const nodeId = current
+          .selectAll('title')
+          .text()
+          .trim();
+        var label = current.selectAll('text').text();
+        const yes = confirm(`Render the subgraph for ${label}?`);
+        if (yes) {
+          const dotStr = dots[dotIndex - 1];
+          const newDotStr = selectNodes(
+            dotStr.replace(/,(\s+\];)/gm, '$1'),
+            new Set([nodeId]),
+          );
+          if (dotStr !== newDotStr) {
+            dots.push(newDotStr);
+            render();
+          }
+        }
       }
     </script>
   </body>
